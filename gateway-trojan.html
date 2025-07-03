@@ -1,0 +1,44 @@
+<!-- gateway-trojan.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting…</title>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref') || 'direct';
+
+    // Fetch valid Trojan referral codes from external CSV file
+    fetch('https://yourusername.github.io/referral-codes/codes-trojan.csv') // <-- Replace with your actual Trojan CSV URL
+      .then(response => response.text())
+      .then(text => {
+        const validCodes = text.split('\n').map(code => code.trim());
+
+        if (validCodes.includes(ref)) {
+          localStorage.setItem('trojan_ref', ref);
+
+          // Send Trojan referral tracking data to Zapier or other endpoint
+          fetch('https://hooks.zapier.com/hooks/catch/your-hook-id-here/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ref: ref,
+              timestamp: new Date().toISOString(),
+              userAgent: navigator.userAgent
+            })
+          });
+
+          // Redirect to Trojan Horse prologue page
+          window.location.href = 'https://ko-fi.com/post/Trojan-Horse--Prologue--A-Cold-Open-X8X81H9G2B';
+        } else {
+          window.location.href = 'about:blank';
+        }
+      })
+      .catch(() => {
+        window.location.href = 'about:blank';
+      });
+  </script>
+</head>
+<body style="display:none">
+</body>
+</html>
