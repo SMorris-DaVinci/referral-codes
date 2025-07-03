@@ -9,15 +9,19 @@
     const ref = params.get('ref') || 'direct';
 
     // Fetch valid Trojan referral codes from external CSV file
-    fetch('https://yourusername.github.io/referral-codes/codes-trojan.csv') // <-- Replace with your actual Trojan CSV URL
+    fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
       .then(response => response.text())
       .then(text => {
-        const validCodes = text.split('\n').map(code => code.trim());
+        const validCodes = text
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
 
         if (validCodes.includes(ref)) {
           localStorage.setItem('trojan_ref', ref);
 
-          // Send Trojan referral tracking data to Zapier or other endpoint
+          // Zapier tracking temporarily disabled
+          /*
           fetch('https://hooks.zapier.com/hooks/catch/your-hook-id-here/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -27,6 +31,7 @@
               userAgent: navigator.userAgent
             })
           });
+          */
 
           // Redirect to Trojan Horse prologue page
           window.location.href = 'https://ko-fi.com/post/Trojan-Horse--Prologue--A-Cold-Open-X8X81H9G2B';
