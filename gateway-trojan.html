@@ -20,9 +20,8 @@
         if (validCodes.includes(ref)) {
           localStorage.setItem('trojan_ref', ref);
 
-          // Zapier tracking temporarily disabled
-          /*
-          fetch('https://hooks.zapier.com/hooks/catch/your-hook-id-here/', {
+          // Send Trojan referral tracking data to Zapier
+          fetch('https://hooks.zapier.com/hooks/catch/23640362/u3oxe0m/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -31,7 +30,6 @@
               userAgent: navigator.userAgent
             })
           });
-          */
 
           // Redirect to Trojan Horse prologue page
           window.location.href = 'https://ko-fi.com/post/Trojan-Horse--Prologue--A-Cold-Open-X8X81H9G2B';
