@@ -1,1 +1,2 @@
-timestamp,referral code,IP hash or user ID,source URL,redirected to,tip confirmed,user agent
+ref,timestamp,userAgent,chapter,book,tipIntent,localStorage,sourceURL,ipAddress,urlParamsRaw
+
