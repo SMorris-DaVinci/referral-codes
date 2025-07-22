@@ -1,0 +1,47 @@
+<!-- gateway-trojan.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting…</title>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref') || 'direct';
+
+    // Fetch valid Trojan referral codes from external CSV file
+    fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
+      .then(response => response.text())
+      .then(text => {
+        const validCodes = text
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
+
+        if (validCodes.includes(ref)) {
+          localStorage.setItem('trojan_ref', ref);
+
+          // Send Trojan referral tracking data to Zapier
+          fetch('https://hooks.zapier.com/hooks/catch/23640362/u3oxe0m/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ref: ref,
+              timestamp: new Date().toISOString(),
+              userAgent: navigator.userAgent
+            })
+          });
+
+          // Redirect to Trojan Horse prologue page
+          window.location.href = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
+        } else {
+          window.location.href = 'about:blank';
+        }
+      })
+      .catch(() => {
+        window.location.href = 'about:blank';
+      });
+  </script>
+</head>
+<body style="display:none">
+</body>
+</html>
