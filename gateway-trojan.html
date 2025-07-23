@@ -8,7 +8,6 @@
     const params = new URLSearchParams(location.search);
     const ref = params.get('ref') || 'direct';
 
-    // Fetch valid Trojan referral codes from external CSV file
     fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
       .then(response => response.text())
       .then(text => {
@@ -20,7 +19,7 @@
         if (validCodes.includes(ref)) {
           localStorage.setItem('trojan_ref', ref);
 
-          // Send Trojan referral tracking data to GitHub logging endpoint
+          // ✅ Send referral tracking data to Vercel API
           fetch('https://referral-codes.vercel.app/api/log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -33,12 +32,12 @@
               tipIntent: false,
               localStorage: JSON.stringify(localStorage),
               sourceURL: window.location.href,
-              ipAddress: '', // Filled by backend
+              ipAddress: '', // backend should populate
               urlParamsRaw: location.search
             })
           });
 
-          // Redirect to Trojan Horse prologue page
+          // ✅ Redirect to chapter
           window.location.href = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
         } else {
           window.location.href = 'about:blank';
@@ -49,6 +48,5 @@
       });
   </script>
 </head>
-<body style="display:none">
-</body>
+<body style="display:none"></body>
 </html>
