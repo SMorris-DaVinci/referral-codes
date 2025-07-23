@@ -1,7 +1,6 @@
 name: Log Referral
 
 on:
-  workflow_dispatch:
   repository_dispatch:
     types: [log-referral]
 
@@ -14,14 +13,14 @@ jobs:
 
       - name: Decode and append to CSV
         run: |
-          echo "${{ github.event.client_payload.content }}" | base64 -d >> pending-log-trojan.csv
+          echo "${{ github.event.client_payload.content }}" | base64 -d >> referral-log-trojan.csv
 
       - name: Commit and push
         run: |
           git config user.name "Referral Bot"
           git config user.email "bot@litocracy.org"
-          git add pending-log-trojan.csv
+          git add referral-log-trojan.csv
           git commit -m "Append referral log"
           git push
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
