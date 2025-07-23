@@ -20,14 +20,21 @@
         if (validCodes.includes(ref)) {
           localStorage.setItem('trojan_ref', ref);
 
-          // Send Trojan referral tracking data to Zapier
-          fetch('https://hooks.zapier.com/hooks/catch/23640362/u3oxe0m/', {
+          // Send Trojan referral tracking data to GitHub logging endpoint
+          fetch('https://referral-codes.surge.sh/log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ref: ref,
               timestamp: new Date().toISOString(),
-              userAgent: navigator.userAgent
+              userAgent: navigator.userAgent,
+              chapter: 'Prologue',
+              book: 'Trojan Horse',
+              tipIntent: false,
+              localStorage: JSON.stringify(localStorage),
+              sourceURL: window.location.href,
+              ipAddress: '', // Will be filled by backend
+              urlParamsRaw: location.search
             })
           });
 
