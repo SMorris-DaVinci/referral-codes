@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Referral Logger</title>
+</head>
+<body>
+  <h1>Logging referral...</h1>
+  <script>
+    (async () => {
+      // Required: Your GitHub PAT with repo scope
+      const GITHUB_TOKEN = "ghp_k6nAnPKmR3X2uI4d8VQoPQ4syZ5oYx3U4do2"; // <-- already expired, example only
+      const owner = "SMorris-DaVinci";
+      const repo = "referral-codes";
+
+      const getIP = async () => {
+        try {
+          const res = await fetch("https://api.ipify.org?format=json");
+          const data = await res.json();
+          return data.ip;
+        } catch (e) {
+          return "";
+        }
+      };
+
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+      const data = {
+        ref: localStorage.getItem("ref") || "", // Your unique share code
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        chapter: localStorage.getItem("chapter") || "",
+        book: localStorage.getItem("book") || "",
+        tipIntent: localStorage.getItem("tipIntent") || "",
+        localStorage: JSON.stringify(localStorage),
+        sourceURL: document.referrer,
+        ipAddress: await getIP(),
+        urlParamsRaw: window.location.search.replace(/^\?/, "")
+      };
+
+      const payload = {
+        event_type: "log-referral",
+        client_payload: data
+      };
+
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${GITHUB_TOKEN}`,
+          "Accept": "application/vnd.github+json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        document.body.innerHTML = '<h2>Referral logged successfully.</h2>';
+      } else {
+        const error = await response.text();
+        document.body.innerHTML = '<h2>Failed to log referral.</h2><pre>' + error + '</pre>';
+      }
+    })();
+  </script>
+</body>
+</html>
