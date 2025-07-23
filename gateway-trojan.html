@@ -1,23 +1,35 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Redirecting...</title>
-    <script>
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get("ref");
+<head>
+  <meta charset="UTF-8" />
+  <title>Redirecting…</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h2 id="status">Checking referral code…</h2>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
 
-      // OPTIONAL: define fallback behavior if ref is missing
-      if (!ref) {
-        window.location.href = "https://litocracy.org/invalid.html";
-      } else {
-        // Construct redirect URL – adjust this to point where you want it to go
-        const target = `https://litocracy.org/read?ref=${encodeURIComponent(ref)}`;
-        window.location.href = target;
-      }
-    </script>
-  </head>
-  <body>
-    Redirecting...
-  </body>
+    if (!ref) {
+      document.getElementById("status").textContent = "Missing referral code.";
+    } else {
+      document.getElementById("status").textContent = `Referral code: ${ref}. Redirecting…`;
+
+      // VALIDATE CODE (simplified for now — just allow anything non-empty)
+      // You can fetch a CSV or use hardcoded codes if needed
+
+      const destination = "https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0";
+      setTimeout(() => {
+        window.location.href = destination;
+      }, 1000); // short delay so user sees the message
+    }
+  </script>
+</body>
 </html>
