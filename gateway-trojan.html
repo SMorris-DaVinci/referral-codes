@@ -20,8 +20,8 @@
         if (validCodes.includes(ref)) {
           localStorage.setItem('trojan_ref', ref);
 
-          // Send Trojan referral tracking data to GitHub logging endpoint
-          fetch('https://referral-codes.surge.sh/log', {
+          // Send Trojan referral tracking data to GitHub logging endpoint (Vercel)
+          fetch('https://referral-codes-nine.vercel.app/api/log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
