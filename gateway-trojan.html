@@ -1,35 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8">
   <title>Redirecting…</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin-top: 100px;
-    }
-  </style>
-</head>
-<body>
-  <h2 id="status">Checking referral code…</h2>
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("ref");
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref') || 'direct';
 
-    if (!ref) {
-      document.getElementById("status").textContent = "Missing referral code.";
-    } else {
-      document.getElementById("status").textContent = `Referral code: ${ref}. Redirecting…`;
+    // Set referral code in localStorage if valid
+    fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
+      .then(response => response.text())
+      .then(text => {
+        const validCodes = text
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
 
-      // VALIDATE CODE (simplified for now — just allow anything non-empty)
-      // You can fetch a CSV or use hardcoded codes if needed
+        if (validCodes.includes(ref)) {
+          localStorage.setItem('trojan_ref', ref);
 
-      const destination = "https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0";
-      setTimeout(() => {
-        window.location.href = destination;
-      }, 1000); // short delay so user sees the message
-    }
+          // Redirect to Ko-fi Trojan prologue
+          window.location.href = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
+        } else {
+          window.location.href = 'about:blank';
+        }
+      })
+      .catch(() => {
+        window.location.href = 'about:blank';
+      });
   </script>
+</head>
+<body style="display:none">
 </body>
 </html>
