@@ -1,54 +1,43 @@
-<!-- gateway-trojan.html -->
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Redirecting…</title>
-  <script>
-    const params = new URLSearchParams(location.search);
-    const ref = params.get('ref') || 'direct';
+<script>
+  window.addEventListener("DOMContentLoaded", async () => {
+    const endpoint = "https://litocracy-referral.vercel.app/api/log";
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    const chapter = "Prologue";
+    const book = "Trojan Horse";
+    const tipIntent = localStorage.getItem("tipIntent") || "";
+    const localStorageDump = JSON.stringify(localStorage);
+    const sourceURL = document.referrer;
+    const ipAddress = ""; // leave empty for now
+    const urlParamsRaw = window.location.search;
+    const timestamp = new Date().toISOString();
+    const userAgent = navigator.userAgent;
 
-    // Fetch valid Trojan referral codes from external CSV file
-    fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
-      .then(response => response.text())
-      .then(text => {
-        const validCodes = text
-          .split(/\r?\n/)
-          .map(line => line.trim())
-          .filter(line => line.length > 0);
+    const logData = {
+      ref,
+      timestamp,
+      userAgent,
+      chapter,
+      book,
+      tipIntent,
+      localStorage: localStorageDump,
+      sourceURL,
+      ipAddress,
+      urlParamsRaw
+    };
 
-        if (validCodes.includes(ref)) {
-          localStorage.setItem('trojan_ref', ref);
-
-          // Send Trojan referral tracking data to GitHub logging endpoint (Vercel)
-          fetch('https://referral-codes-nine.vercel.app/api/log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ref: ref,
-              timestamp: new Date().toISOString(),
-              userAgent: navigator.userAgent,
-              chapter: 'Prologue',
-              book: 'Trojan Horse',
-              tipIntent: false,
-              localStorage: JSON.stringify(localStorage),
-              sourceURL: window.location.href,
-              ipAddress: '', // Will be filled by backend
-              urlParamsRaw: location.search
-            })
-          });
-
-          // Redirect to Trojan Horse prologue page
-          window.location.href = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
-        } else {
-          window.location.href = 'about:blank';
-        }
-      })
-      .catch(() => {
-        window.location.href = 'about:blank';
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(logData)
       });
-  </script>
-</head>
-<body style="display:none">
-</body>
-</html>
+
+      const result = await response.json();
+      console.log("Referral log response:", result);
+    } catch (err) {
+      console.error("Error sending referral log:", err);
+    }
+  });
+</script>
