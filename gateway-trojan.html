@@ -20,7 +20,7 @@
           localStorage.setItem('trojan_ref', ref);
 
           // ✅ Send referral tracking data to Vercel API
-          fetch('https://referral-codes.vercel.app/api/log', {
+          fetch('https://referral-codes-nine.vercel.app/api/log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
