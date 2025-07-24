@@ -6,9 +6,21 @@ export default async function handler(req, res) {
   const token = process.env.GITHUB_TOKEN;
   const repoOwner = 'SMorris-DaVinci';
   const repoName = 'referral-codes';
-  const filePath = 'pending-log-trojan.csv';
+  const filePath = 'referral-log-trojan.csv'; // ✅ Correct target file
 
-  const { ref, timestamp, userAgent, chapter, book, tipIntent, localStorage, sourceURL, ipAddress, urlParamsRaw } = req.body;
+  const {
+    ref,
+    timestamp,
+    userAgent,
+    chapter,
+    book,
+    tipIntent,
+    localStorage,
+    sourceURL,
+    ipAddress,
+    urlParamsRaw
+  } = req.body;
+
   const newLine = `"${ref}","${timestamp}","${userAgent}","${chapter}","${book}",${tipIntent},"${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}"`;
 
   const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
@@ -27,7 +39,7 @@ export default async function handler(req, res) {
 
   const fileData = await currentFile.json();
   const contentDecoded = Buffer.from(fileData.content, 'base64').toString();
-  const updatedContent = `${newLine}\n${contentDecoded}`;
+  const updatedContent = `${contentDecoded.trim()}\n${newLine}`;
   const encodedContent = Buffer.from(updatedContent).toString('base64');
 
   const update = await fetch(apiUrl, {
