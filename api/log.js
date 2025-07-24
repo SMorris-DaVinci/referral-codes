@@ -1,24 +1,27 @@
 export default async function handler(req, res) {
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    return res.status(200).end();
+  }
+
+  // Only allow POST from frontend
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   const token = process.env.GITHUB_TOKEN;
   const repoOwner = 'SMorris-DaVinci';
   const repoName = 'referral-codes';
-  const filePath = 'referral-log-trojan.csv'; // ✅ Correct target file
+  const filePath = 'referral-codes/referral-log-trojan.csv';
 
   const {
-    ref,
-    timestamp,
-    userAgent,
-    chapter,
-    book,
-    tipIntent,
-    localStorage,
-    sourceURL,
-    ipAddress,
-    urlParamsRaw
+    ref, timestamp, userAgent, chapter, book,
+    tipIntent, localStorage, sourceURL, ipAddress, urlParamsRaw
   } = req.body;
 
   const newLine = `"${ref}","${timestamp}","${userAgent}","${chapter}","${book}",${tipIntent},"${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}"`;
@@ -39,7 +42,7 @@ export default async function handler(req, res) {
 
   const fileData = await currentFile.json();
   const contentDecoded = Buffer.from(fileData.content, 'base64').toString();
-  const updatedContent = `${contentDecoded.trim()}\n${newLine}`;
+  const updatedContent = `${newLine}\n${contentDecoded}`;
   const encodedContent = Buffer.from(updatedContent).toString('base64');
 
   const update = await fetch(apiUrl, {
