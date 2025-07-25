@@ -22,7 +22,9 @@
           // ✅ Send referral tracking data to Vercel API
           fetch('https://referral-codes-nine.vercel.app/api/log', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
               ref: ref,
               timestamp: new Date().toISOString(),
@@ -35,6 +37,8 @@
               ipAddress: '', // backend should populate
               urlParamsRaw: location.search
             })
+          }).catch(err => {
+            console.error('Logging failed:', err);
           });
 
           // ✅ Redirect to chapter
@@ -43,7 +47,8 @@
           window.location.href = 'about:blank';
         }
       })
-      .catch(() => {
+      .catch(err => {
+        console.error('Code list fetch failed:', err);
         window.location.href = 'about:blank';
       });
   </script>
