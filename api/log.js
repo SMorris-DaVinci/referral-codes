@@ -1,3 +1,4 @@
+// Triggering redeploy manually
 export default async function handler(req, res) {
   // Handle preflight
   if (req.method === 'OPTIONS') {
