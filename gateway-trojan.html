@@ -5,13 +5,15 @@
   <meta charset="utf-8">
   <title>Redirecting…</title>
   <script>
-    const params = new URLSearchParams(location.search);
-    const ref = params.get('ref') || 'direct';
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const ref = params.get('ref') || 'direct';
 
-    fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
-      .then(response => response.text())
-      .then(text => {
-        const validCodes = text
+      try {
+        const response = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv');
+        const csv = await response.text();
+
+        const validCodes = csv
           .split(/\r?\n/)
           .map(line => line.trim())
           .filter(line => line.length > 0);
@@ -32,20 +34,24 @@
               tipIntent: false,
               localStorage: JSON.stringify(localStorage),
               sourceURL: window.location.href,
-              ipAddress: '',
+              ipAddress: '', // Placeholder (not available client-side)
               urlParamsRaw: location.search
             })
+          }).catch(() => {
+            // Log fail silently; don’t interrupt redirect
           });
 
-          // ✅ Redirect to chapter
+          // ✅ Redirect to the chapter page
           window.location.href = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
         } else {
+          // ❌ Invalid ref — blank page
           window.location.href = 'about:blank';
         }
-      })
-      .catch(() => {
+      } catch (err) {
+        // ❌ Failed to load CSV — blank page
         window.location.href = 'about:blank';
-      });
+      }
+    })();
   </script>
 </head>
 <body style="display:none"></body>
