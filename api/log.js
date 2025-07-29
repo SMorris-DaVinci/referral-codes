@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   const token = process.env.GITHUB_TOKEN;
   const repoOwner = 'SMorris-DaVinci';
   const repoName = 'referral-codes';
-  const filePath = 'referral-codes/referral-log-trojan.csv';
+  const filePath = 'referral-log-trojan.csv';  // ✅ Fixed path (was incorrectly nested)
 
   const {
     ref, timestamp, userAgent, chapter, book,
