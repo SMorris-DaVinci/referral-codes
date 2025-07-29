@@ -1,8 +1,3 @@
-// Force Node.js runtime (not Edge) so environment variables are accessible
-export const config = {
-  runtime: 'nodejs',
-};
-
 export default async function handler(req, res) {
   // Handle preflight
   if (req.method === 'OPTIONS') {
@@ -20,10 +15,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    return res.status(500).json({ error: 'GitHub token missing in environment' });
-  }
-
   const repoOwner = 'SMorris-DaVinci';
   const repoName = 'referral-codes';
   const filePath = 'referral-codes/referral-log-trojan.csv';
