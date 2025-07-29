@@ -1,3 +1,8 @@
+// Force Node.js runtime (not Edge) so environment variables are accessible
+export const config = {
+  runtime: 'nodejs',
+};
+
 export default async function handler(req, res) {
   // Handle preflight
   if (req.method === 'OPTIONS') {
