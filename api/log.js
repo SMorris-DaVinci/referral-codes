@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     ipAddress, urlParamsRaw
   } = req.body;
 
-  // 🔒 Safely quote all values for proper CSV structure
+  // Properly quote all values for CSV compliance
   const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
   const newLine = [
