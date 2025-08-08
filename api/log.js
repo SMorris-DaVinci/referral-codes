@@ -20,10 +20,11 @@ export default async function handler(req, res) {
   const {
     timestamp, ref, userAgent,
     chapter, book, localStorage,
-    sourceURL, ipAddress, urlParamsRaw
+    sourceURL, ipAddress, urlParamsRaw,
+    tipIntent
   } = req.body;
 
-  const newLine = `"${ref || 'NEW'}","${timestamp}","${userAgent}","${chapter}","${book}","${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}"`;
+  const newLine = `"${ref || 'NEW'}","${timestamp}","${userAgent}","${chapter}","${book}","${tipIntent === true ? 'true' : 'false'}","${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}"`;
   const commitMessage = `Add referral: ${ref || 'NEW'}`;
   const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
