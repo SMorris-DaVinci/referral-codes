@@ -20,13 +20,11 @@ export default async function handler(req, res) {
     timestamp, ref, rating, url
   } = req.body;
 
-  const isRating = rating !== undefined;
-
-  if (!isRating) {
+  if (rating === undefined) {
     return res.status(400).json({ error: 'Missing rating field in payload' });
   }
 
-  // Parse book and chapter from URL filename
+  // Parse book and chapter from the filename in the URL
   let book = 'UNKNOWN';
   let chapter = 'UNKNOWN';
   try {
