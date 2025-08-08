@@ -17,30 +17,52 @@ export default async function handler(req, res) {
   const repoName = 'referral-codes';
 
   const {
-    timestamp, ref, rating, url
+    timestamp, ref, userAgent,
+    chapter, book, tipIntent,
+    localStorage, sourceURL,
+    ipAddress, urlParamsRaw,
+    rating, url
   } = req.body;
 
-  if (rating === undefined) {
-    return res.status(400).json({ error: 'Missing rating field in payload' });
+  let filePath = '';
+  let newLine = '';
+  let commitMessage = '';
+
+  // --- TIP / REFERRAL logging ---
+  const isReferral = ref && userAgent && chapter && book && tipIntent !== undefined;
+
+  if (isReferral) {
+    filePath = 'referral-log-trojan.csv';
+    newLine = `"${ref || 'NEW'}","${timestamp}","${userAgent}","${chapter}","${book}","${tipIntent}","${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}"`;
+    commitMessage = `Add referral: ${ref || 'NEW'}`;
   }
 
-  // Parse book and chapter from the filename in the URL
-  let book = 'UNKNOWN';
-  let chapter = 'UNKNOWN';
-  try {
-    const fileName = new URL(url).pathname.split('/').pop(); // e.g. rating-trojan-0.html
-    const match = fileName.match(/^rating-(.+)-(\d+)\.html$/);
-    if (match) {
-      book = match[1];
-      chapter = match[2];
+  // --- RATING logging ---
+  else if (rating !== undefined && url) {
+    filePath = 'ratings-log.csv';
+
+    // Attempt to parse book and chapter from the filename
+    let parsedBook = 'UNKNOWN';
+    let parsedChapter = 'UNKNOWN';
+    try {
+      const fileName = new URL(url).pathname.split('/').pop(); // e.g. rating-trojan-0.html
+      const match = fileName.match(/^rating-(.+)-(\d+)\.html$/);
+      if (match) {
+        parsedBook = match[1];
+        parsedChapter = match[2];
+      }
+    } catch (e) {
+      console.error('Failed to parse book/chapter from URL:', e.message);
     }
-  } catch (e) {
-    console.error('Failed to parse book/chapter from URL:', e.message);
+
+    newLine = `"${timestamp}","${parsedBook}","${parsedChapter}","${ref || 'NONE'}","${rating}"`;
+    commitMessage = `Add rating: ${parsedBook}-${parsedChapter} by ${ref || 'NONE'}`;
   }
 
-  const filePath = 'ratings-log.csv';
-  const newLine = `"${timestamp}","${book}","${chapter}","${ref || 'NONE'}","${rating}"`;
-  const commitMessage = `Add rating: ${book}-${chapter} by ${ref || 'NONE'}`;
+  else {
+    return res.status(400).json({ error: 'Invalid payload structure' });
+  }
+
   const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
   try {
