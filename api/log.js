@@ -1,89 +1,74 @@
-// FIXED: Dual logger for tips and ratings (correct file routing + ref value handling)
+// Triggering redeploy manually
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    return res.status(200).end();
-  }
+// Handle preflight
+if (req.method === 'OPTIONS') {
+res.setHeader('Access-Control-Allow-Origin', '*');
+res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+return res.status(200).end();
+}
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
+// Only allow POST
+if (req.method !== 'POST') {
+return res.status(405).json({ message: 'Method Not Allowed' });
+}
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
+res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const token = process.env.GITHUB_TOKEN;
-  const repoOwner = 'SMorris-DaVinci';
-  const repoName = 'referral-codes';
+const token = process.env.GITHUB_TOKEN;
+const repoOwner = 'SMorris-DaVinci';
+const repoName = 'referral-codes';
+  const filePath = 'referral-codes/referral-log-trojan.csv';
+  const filePath = 'referral-log-trojan.csv';  // ✅ Fixed path (was incorrectly nested)
 
-  const {
-    timestamp, url, ref,
-    rating, tipIntent,
-    userAgent, chapter, book,
-    localStorage, sourceURL, ipAddress, urlParamsRaw
-  } = req.body;
+const {
+ref, timestamp, userAgent, chapter, book,
+tipIntent, localStorage, sourceURL, ipAddress, urlParamsRaw
+} = req.body;
 
-  const isTip = tipIntent === true;
-  const isRating = rating !== undefined;
+const newLine = `"${ref}","${timestamp}","${userAgent}","${chapter}","${book}",${tipIntent},"${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}"`;
 
-  let filePath, newLine, commitMessage;
+const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
-  if (isTip) {
-    // TIP log → referral-log-trojan.csv (includes rating)
-    filePath = 'referral-log-trojan.csv';
-    newLine = `${ref || 'NEW'},${timestamp},${userAgent},${chapter},${book},true,${localStorage},${sourceURL},${ipAddress},${urlParamsRaw},${rating || ''}`;
-    commitMessage = `Add tip/referral: ${ref || 'NEW'}`;
-  } else if (isRating) {
-    // Rating-only log → ratings-log.csv
-    filePath = 'ratings-log.csv';
-    newLine = `${timestamp},${url},${ref || 'NONE'},${rating}`;
-    commitMessage = `Add rating: ${ref || 'NONE'}`;
-  } else {
-    return res.status(400).json({ error: 'Invalid payload structure' });
-  }
+try {
+const currentFile = await fetch(apiUrl, {
+headers: {
+Authorization: `Bearer ${token}`,
+Accept: 'application/vnd.github.v3+json'
+}
+});
 
-  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
+if (!currentFile.ok) {
+const err = await currentFile.text();
+return res.status(currentFile.status).json({ error: 'Failed to fetch file', details: err });
+}
 
-  try {
-    const currentFile = await fetch(apiUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json'
-      }
-    });
+const fileData = await currentFile.json();
+const contentDecoded = Buffer.from(fileData.content, 'base64').toString();
+const updatedContent = `${contentDecoded.trim()}\n${newLine}`;
+const encodedContent = Buffer.from(updatedContent).toString('base64');
 
-    if (!currentFile.ok) {
-      const err = await currentFile.text();
-      return res.status(currentFile.status).json({ error: 'Failed to fetch file', details: err });
-    }
+const update = await fetch(apiUrl, {
+method: 'PUT',
+headers: {
+Authorization: `Bearer ${token}`,
+Accept: 'application/vnd.github.v3+json'
+},
+body: JSON.stringify({
+message: `Add referral: ${ref}`,
+content: encodedContent,
+sha: fileData.sha
+})
+});
 
-    const fileData = await currentFile.json();
-    const contentDecoded = Buffer.from(fileData.content, 'base64').toString();
-    const updatedContent = `${contentDecoded.trim()}\n${newLine}`;
-    const encodedContent = Buffer.from(updatedContent).toString('base64');
+if (!update.ok) {
+const err = await update.text();
+return res.status(update.status).json({ error: 'Failed to update file', details: err });
+}
 
-    const update = await fetch(apiUrl, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json'
-      },
-      body: JSON.stringify({
-        message: commitMessage,
-        content: encodedContent,
-        sha: fileData.sha
-      })
-    });
+return res.status(200).json({ message: 'Success' });
 
-    if (!update.ok) {
-      const err = await update.text();
-      return res.status(update.status).json({ error: 'Failed to update file', details: err });
-    }
-
-    return res.status(200).json({ message: 'Success' });
-
-  } catch (err) {
-    return res.status(500).json({ error: 'Unexpected error', details: err.message });
-  }
+} catch (err) {
+return res.status(500).json({ error: 'Unexpected error', details: err.message });
+}
 }
