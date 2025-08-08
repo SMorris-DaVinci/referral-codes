@@ -1,3 +1,6 @@
+// File: log.js
+// Purpose: Fix logging domain issue, ensure both referral and rating logs work
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -41,11 +44,11 @@ export default async function handler(req, res) {
   else if (rating !== undefined && url) {
     filePath = 'ratings-log.csv';
 
-    // Attempt to parse book and chapter from the filename
+    // Parse book and chapter from URL filename
     let parsedBook = 'UNKNOWN';
     let parsedChapter = 'UNKNOWN';
     try {
-      const fileName = new URL(url).pathname.split('/').pop(); // e.g. rating-trojan-0.html
+      const fileName = new URL(url).pathname.split('/').pop();
       const match = fileName.match(/^rating-(.+)-(\d+)\.html$/);
       if (match) {
         parsedBook = match[1];
