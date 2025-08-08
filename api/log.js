@@ -1,4 +1,4 @@
-// GitHub API dual logger for tips and ratings
+// FIXED: Dual logger for tips and ratings (correct file routing + ref value handling)
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,21 +24,21 @@ export default async function handler(req, res) {
     localStorage, sourceURL, ipAddress, urlParamsRaw
   } = req.body;
 
-  const isReferral = tipIntent !== undefined;
+  const isTip = tipIntent === true;
   const isRating = rating !== undefined;
 
   let filePath, newLine, commitMessage;
 
-  if (isReferral) {
-    // Referral with optional rating
+  if (isTip) {
+    // TIP log → referral-log-trojan.csv (includes rating)
     filePath = 'referral-log-trojan.csv';
-    newLine = `"${ref || 'NEW'}","${timestamp}","${userAgent}","${chapter}","${book}",${tipIntent},"${localStorage}","${sourceURL}","${ipAddress}","${urlParamsRaw}","${rating || ''}"`;
-    commitMessage = `Add referral: ${ref}`;
+    newLine = `${ref || 'NEW'},${timestamp},${userAgent},${chapter},${book},true,${localStorage},${sourceURL},${ipAddress},${urlParamsRaw},${rating || ''}`;
+    commitMessage = `Add tip/referral: ${ref || 'NEW'}`;
   } else if (isRating) {
-    // Rating only
+    // Rating-only log → ratings-log.csv
     filePath = 'ratings-log.csv';
-    newLine = `"${timestamp}","${url}","${ref || '(NONE)'}","${rating}"`;
-    commitMessage = `Add rating: ${ref || '(NONE)'}`;
+    newLine = `${timestamp},${url},${ref || 'NONE'},${rating}`;
+    commitMessage = `Add rating: ${ref || 'NONE'}`;
   } else {
     return res.status(400).json({ error: 'Invalid payload structure' });
   }
