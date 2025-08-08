@@ -15,32 +15,34 @@ export default async function handler(req, res) {
   const token = process.env.GITHUB_TOKEN;
   const repoOwner = 'SMorris-DaVinci';
   const repoName = 'referral-codes';
-  const filePath = 'referral-log-trojan.csv';
 
   const {
-    timestamp, ref, userAgent,
-    chapter, book, tipIntent,
-    localStorage, sourceURL,
-    ipAddress, urlParamsRaw
+    timestamp, ref, rating, url
   } = req.body;
 
-  // Properly quote all values for CSV compliance
-  const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
+  const isRating = rating !== undefined;
 
-  const newLine = [
-    quote(ref || 'NEW'),
-    quote(timestamp),
-    quote(userAgent),
-    quote(chapter),
-    quote(book),
-    quote(tipIntent),
-    quote(localStorage),
-    quote(sourceURL),
-    quote(ipAddress),
-    quote(urlParamsRaw)
-  ].join(',');
+  if (!isRating) {
+    return res.status(400).json({ error: 'Missing rating field in payload' });
+  }
 
-  const commitMessage = `Add referral: ${ref || 'NEW'}`;
+  // Parse book and chapter from URL filename
+  let book = 'UNKNOWN';
+  let chapter = 'UNKNOWN';
+  try {
+    const fileName = new URL(url).pathname.split('/').pop(); // e.g. rating-trojan-0.html
+    const match = fileName.match(/^rating-(.+)-(\d+)\.html$/);
+    if (match) {
+      book = match[1];
+      chapter = match[2];
+    }
+  } catch (e) {
+    console.error('Failed to parse book/chapter from URL:', e.message);
+  }
+
+  const filePath = 'ratings-log.csv';
+  const newLine = `"${timestamp}","${book}","${chapter}","${ref || 'NONE'}","${rating}"`;
+  const commitMessage = `Add rating: ${book}-${chapter} by ${ref || 'NONE'}`;
   const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
   try {
