@@ -1,6 +1,7 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "/log", "dest": "/api/log.js" }
-  ]
+  "functions": {
+    "api/log.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
 }
