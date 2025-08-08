@@ -24,17 +24,20 @@ export default async function handler(req, res) {
     ipAddress, urlParamsRaw
   } = req.body;
 
+  // 🔒 Safely quote all values for proper CSV structure
+  const quote = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
   const newLine = [
-    ref || 'NEW',
-    timestamp,
-    `"${userAgent}"`,
-    chapter,
-    book,
-    tipIntent === true ? true : false, // Ensure unquoted boolean
-    `"${localStorage}"`,
-    sourceURL,
-    ipAddress,
-    urlParamsRaw
+    quote(ref || 'NEW'),
+    quote(timestamp),
+    quote(userAgent),
+    quote(chapter),
+    quote(book),
+    quote(tipIntent),
+    quote(localStorage),
+    quote(sourceURL),
+    quote(ipAddress),
+    quote(urlParamsRaw)
   ].join(',');
 
   const commitMessage = `Add referral: ${ref || 'NEW'}`;
