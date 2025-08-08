@@ -40,28 +40,30 @@ newLine = `"${ref || 'NEW'}","${timestamp}","${userAgent}","${chapter}","${book}
 commitMessage = `Add referral: ${ref || 'NEW'}`;
 }
 
-// --- RATING logging ---
+  // --- RATING logging ---
+  // --- SIMPLIFIED RATING logging ---
 else if (rating !== undefined && url) {
 filePath = 'ratings-log.csv';
 
-    // Attempt to parse book and chapter from the filename
     // Parse book and chapter from URL filename
-let parsedBook = 'UNKNOWN';
-let parsedChapter = 'UNKNOWN';
-try {
-      const fileName = new URL(url).pathname.split('/').pop(); // e.g. rating-trojan-0.html
+    let parsedBook = 'UNKNOWN';
+    let parsedChapter = 'UNKNOWN';
+    try {
       const fileName = new URL(url).pathname.split('/').pop();
-const match = fileName.match(/^rating-(.+)-(\d+)\.html$/);
-if (match) {
-parsedBook = match[1];
-parsedChapter = match[2];
-}
-} catch (e) {
-console.error('Failed to parse book/chapter from URL:', e.message);
-}
+      const match = fileName.match(/^rating-(.+)-(\d+)\.html$/);
+      if (match) {
+        parsedBook = match[1];
+        parsedChapter = match[2];
+      }
+    } catch (e) {
+      console.error('Failed to parse book/chapter from URL:', e.message);
+    }
 
-newLine = `"${timestamp}","${parsedBook}","${parsedChapter}","${ref || 'NONE'}","${rating}"`;
-commitMessage = `Add rating: ${parsedBook}-${parsedChapter} by ${ref || 'NONE'}`;
+    newLine = `"${timestamp}","${parsedBook}","${parsedChapter}","${ref || 'NONE'}","${rating}"`;
+    commitMessage = `Add rating: ${parsedBook}-${parsedChapter} by ${ref || 'NONE'}`;
+    const safeRef = ref || 'NONE';
+    newLine = `"${timestamp}","${safeRef}","${rating}","${url}"`;
+    commitMessage = `Add rating by ${safeRef}`;
 }
 
 else {
