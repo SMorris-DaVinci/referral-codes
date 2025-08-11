@@ -1,2 +1,4 @@
+timestamp,session_id,ref,book,chapter,rating,url,userAgent
 "timestamp","book","chapter","ref","rating"
 "2025-08-08T08:46:04.164Z","NONE","1","https://www.davincialabama.com/rating-trojan-0.html"
+"2025-08-11T05:41:27.997Z","","NONE","trojan","0","5","file:///C:/Users/scott/Desktop/Litocracy/Github%20functionalty/referral-test.html",""
