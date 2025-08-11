@@ -1,4 +1,4 @@
-// Vercel endpoint for referral logging only
+// Vercel endpoint for referral logging only - comment
 export default async function handler(req, res) {
   // Handle preflight
   if (req.method === 'OPTIONS') {
