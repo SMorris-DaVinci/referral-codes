@@ -4,3 +4,4 @@ timestamp,session_id,ref,book,chapter,rating,url,userAgent
 "2025-08-11T05:41:27.997Z","","NONE","trojan","0","5","file:///C:/Users/scott/Desktop/Litocracy/Github%20functionalty/referral-test.html",""
 "2025-08-11T05:41:52.721Z","","NONE","trojan","0","5","file:///C:/Users/scott/Desktop/Litocracy/Github%20functionalty/rating-test.html",""
 "2025-08-11T06:06:01.720Z","","NONE","trojan","0","5","file:///C:/Users/scott/Desktop/Litocracy/Github%20functionalty/referral-test.html",""
+"2025-08-11T06:12:23.615Z","7928e10f-fd6f-45e2-9622-5f62b5218227","NEW","trojan","0","5","https://www.davincialabama.com/ratings-trojan-0.html?rating=5","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
