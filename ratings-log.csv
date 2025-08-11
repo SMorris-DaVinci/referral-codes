@@ -1,3 +1,5 @@
+timestamp,session_id,ref,book,chapter,rating,url,userAgent,referrer,utm_source,utm_medium,utm_campaign,utm_content,viewport_w,viewport_h,screen_w,screen_h,device_mem_gb,cpu_cores,timezone,locale,dnt,prefers_reduced_motion,prefers_color_scheme,platform,effective_connection_type,downlink_mbps
 timestamp,session_id,ref,book,chapter,rating,url,userAgent
 "2025-08-11T06:12:23.615Z","7928e10f-fd6f-45e2-9622-5f62b5218227","NEW","trojan","0","5","https://www.davincialabama.com/ratings-trojan-0.html?rating=5","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
 "2025-08-11T06:12:57.139Z","7928e10f-fd6f-45e2-9622-5f62b5218227","NEW","trojan","0","2","https://www.davincialabama.com/ratings-trojan-0.html?rating=2","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0"
+"2025-08-11T08:00:38.159Z","","NEW","trojan","0","4","https://www.davincialabama.com/ratings-trojan-0.html?rating=4","","","","","","","","","","","","","","","","","","","",""
