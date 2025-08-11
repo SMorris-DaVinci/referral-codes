@@ -1,4 +1,4 @@
-// /api/log-rating.js
+// /api/log-rating.js - comment
 export default async function handler(req, res) {
   // CORS / preflight
   if (req.method === 'OPTIONS') {
