@@ -1,3 +1,4 @@
 timestamp,session_id,ref,book,chapter,url,userAgent,sourceURL,urlParamsRaw
 timestamp,session_id,ref,book,chapter,url,userAgent
 "2025-08-11T22:36:12.716Z","","NEW","trojan","0","","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0","https://www.davincialabama.com/ratings-trojan-0.html?rating=2","rating=2"
+"2025-08-11T23:06:47.216Z","","NEW","trojan","0","","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0","https://www.davincialabama.com/ratings-trojan-0.html?rating=3","rating=3"
