@@ -1,102 +1,94 @@
-<!-- gateway-trojan.html -->
+<!-- gateway-trojan.html (silent redirect + validation) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Trojan referral gateway…</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title></title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; color:#222; }
-    .muted { color:#666; }
-    .ok { color:#0b7; }
-    .bad { color:#c00; }
+    /* Keep the page visually blank unless we need to show an error */
+    html, body { background:#fff; margin:0; padding:0; }
+    body { display:none; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .wrap { max-width: 640px; margin: 16vh auto; padding: 0 16px; line-height: 1.5; color: #111; }
   </style>
+  <noscript>
+    <style>body{display:block}</style>
+  </noscript>
 </head>
 <body>
-  <div id="msg" class="muted">Checking referral code…</div>
+  <!-- Only shown if invalid or JS disabled -->
+  <div class="wrap" id="msg" role="alert" aria-live="assertive"></div>
 
   <script>
-  (async () => {
-    const API_BASE = 'https://referral-codes-ten.vercel.app'; // your Vercel project
-    const BOOK = 'trojan';
-    const CHAPTER = '0'; // prologue
-    const KOFI_URL = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const ref = (params.get('ref') || '').trim();
+      const BOOK = 'trojan';
+      const KOFI_PROLOGUE_URL = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
+      const API_BASE = 'https://referral-codes-ten.vercel.app'; // your Vercel project
 
-    const $ = (id) => document.getElementById(id);
-    const params = new URLSearchParams(location.search);
-    const ref = (params.get('ref') || '').trim();
+      // tiny util
+      const showError = (text) => {
+        document.body.style.display = 'block';
+        document.getElementById('msg').textContent = text;
+      };
 
-    // helper: get or create a persistent session id
-    function getSessionId() {
-      let sid = localStorage.getItem('session_id');
-      if (!sid) {
-        sid = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
-        localStorage.setItem('session_id', sid);
+      try {
+        // 1) quick sanity
+        if (!ref || ref.length < 4) {
+          return showError('Page-link blocked. Referral code invalid, or not found.');
+        }
+
+        // 2) fetch allowlist, single-column CSV, no header
+        const listRes = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv', { cache: 'no-store' });
+        if (!listRes.ok) throw new Error('Codes list fetch failed');
+        const listText = await listRes.text();
+        const valid = new Set(
+          listText.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+        );
+        if (!valid.has(ref)) {
+          return showError('Page-link blocked. Referral code invalid, or not found.');
+        }
+
+        // 3) session id (persist per browser)
+        let sessionID = localStorage.getItem('session_id');
+        if (!sessionID) {
+          sessionID = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)));
+          localStorage.setItem('session_id', sessionID);
+        }
+
+        // 4) store what we want to carry later (handy for future flows)
+        localStorage.setItem('ref', ref);
+        localStorage.setItem('book', BOOK);
+
+        // 5) log referral to your API (non-blocking)
+        try {
+          await fetch(`${API_BASE}/api/log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ref,
+              timestamp: new Date().toISOString(),
+              userAgent: navigator.userAgent,
+              chapter: '',          // unknown at this hop
+              book: BOOK,
+              tipIntent: false,
+              localStorage: JSON.stringify({ ref, book: BOOK }),
+              sourceURL: document.referrer || '',
+              ipAddress: '',
+              urlParamsRaw: location.search.slice(1),
+              sessionID
+            })
+          });
+        } catch (_) { /* ignore — don’t block redirect */ }
+
+        // 6) silent forward (no history entry)
+        location.replace(KOFI_PROLOGUE_URL);
+
+      } catch (err) {
+        showError('Page-link blocked. Referral code invalid, or not found.');
       }
-      return sid;
-    }
-
-    function show(text, cls) {
-      const el = $('msg');
-      el.textContent = text;
-      el.className = cls || 'muted';
-    }
-
-    if (!ref) {
-      show('Page-link blocked. Referral code invalid, or not found.', 'bad');
-      return;
-    }
-
-    // fetch valid codes (single-column CSV, no header)
-    let valid = false;
-    try {
-      const csv = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
-        .then(r => r.ok ? r.text() : Promise.reject(r.status));
-      const codes = csv.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      valid = codes.includes(ref);
-    } catch (e) {
-      // if we can't load the list, fail closed
-      valid = false;
-    }
-
-    if (!valid) {
-      show('Page-link blocked. Referral code invalid, or not found.', 'bad');
-      return;
-    }
-
-    // store referral + book/chapter + session id
-    localStorage.setItem('ref', ref);
-    localStorage.setItem('trojan_ref', ref); // legacy key you used before
-    localStorage.setItem('book', BOOK);
-    localStorage.setItem('chapter', CHAPTER);
-    const sessionID = getSessionId();
-
-    // fire-and-forget referral log to Vercel
-    try {
-      await fetch(API_BASE + '/api/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ref,
-          timestamp: new Date().toISOString(),
-          sessionID,
-          chapter: CHAPTER,
-          book: BOOK,
-          userAgent: navigator.userAgent,
-          localStorage: JSON.stringify({ ref, book: BOOK, chapter: CHAPTER }),
-          sourceURL: document.referrer || '',
-          ipAddress: '',                 // left blank by design
-          urlParamsRaw: location.search.slice(1)
-        })
-      });
-    } catch (_) {
-      // non-blocking
-    }
-
-    show('Referral accepted — taking you to the prologue…', 'ok');
-    // short delay so a human can see the message
-    setTimeout(() => { window.location.href = KOFI_URL; }, 500);
-  })();
+    })();
   </script>
 </body>
 </html>
