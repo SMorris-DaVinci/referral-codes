@@ -1,4 +1,6 @@
+// /api/log.js — Referral logger → referral-log-trojan.csv (matches provided header)
 export default async function handler(req, res) {
+  // CORS / preflight
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,90 +8,108 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
-
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   const token = process.env.GITHUB_TOKEN;
+  if (!token) return res.status(500).json({ error: 'Missing GITHUB_TOKEN' });
+
   const repoOwner = 'SMorris-DaVinci';
   const repoName  = 'referral-codes';
-  const filePath  = 'ratings-log.csv';
+  const filePath  = 'referral-log-trojan.csv';
 
-  const { timestamp, ref, book, chapter, rating, url } = req.body;
-  if (!timestamp || !book || chapter === undefined || !rating) {
-    return res.status(400).json({ error: 'Invalid payload' });
+  // Body fields we accept
+  const {
+    ref: refBody = '',
+    timestamp,
+    sessionID = '',            // note: using sessionID (not session_id) to match your header
+    chapter = '0',
+    book = 'trojan',
+    userAgent = '',
+    localStorage: ls = '',     // stringified localStorage if you send it
+    sourceURL = '',
+    ipAddress = '',
+    urlParamsRaw = ''
+  } = req.body || {};
+
+  if (!timestamp) return res.status(400).json({ error: 'Missing timestamp' });
+
+  // Recover ref from urlParamsRaw if missing
+  let ref = (refBody || '').trim();
+  if (!ref && urlParamsRaw) {
+    try {
+      const p = new URLSearchParams(urlParamsRaw);
+      const r = (p.get('ref') || '').trim();
+      if (r) ref = r;
+    } catch (_) {}
   }
+  if (!ref) ref = 'NEW';
 
-  const cleanRef = (ref && String(ref).trim()) || 'NEW';
-  const rNum = Number(rating);
-  if (isNaN(rNum) || rNum < 1 || rNum > 5) {
-    return res.status(400).json({ error: 'Invalid rating value' });
-  }
+  // CSV helpers
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  const newLine = `${timestamp},${cleanRef},${book},${chapter},${rNum},${url}`;
+  // Exact header you provided
+  const HEADER = 'ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw';
+
+  // Row in that exact order
+  const row = [
+    q(ref),
+    q(timestamp),
+    q(sessionID),
+    q(String(chapter).trim()),
+    q(String(book).trim()),
+    q(userAgent.replace(/\r|\n/g, ' ')),
+    q(String(ls)),
+    q(sourceURL),
+    q(ipAddress),
+    q(urlParamsRaw)
+  ].join(',');
+
+  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
   try {
-    const githubApiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
-    const getRes = await fetch(githubApiUrl, {
+    // Read current file (or 404)
+    const cur = await fetch(apiUrl, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }
     });
 
-    let content = '';
-    let sha;
-    if (getRes.ok) {
-      const json = await getRes.json();
-      content = Buffer.from(json.content, 'base64').toString();
+    let updatedContent, sha;
+
+    if (cur.ok) {
+      const json = await cur.json();
+      const existing = Buffer.from(json.content, 'base64').toString();
+      const first = (existing.split('\n')[0] || '').trim();
+      const hasHeader = first === HEADER;
+
+      updatedContent = hasHeader
+        ? `${existing.trim()}\n${row}\n`
+        : `${HEADER}\n${existing.trim().replace(/^\s*$/, '')}\n${row}\n`;
+
       sha = json.sha;
-    } else if (getRes.status !== 404) {
-      const errText = await getRes.text();
-      return res.status(getRes.status).json({ error: errText });
+    } else if (cur.status === 404) {
+      updatedContent = `${HEADER}\n${row}\n`;
+    } else {
+      const err = await cur.text();
+      return res.status(cur.status).json({ error: 'Failed to fetch file', details: err });
     }
 
-    if (!content.startsWith('timestamp,ref,book,chapter,rating,url')) {
-      content = 'timestamp,ref,book,chapter,rating,url\n' + content.trim();
-    }
-    const updated = content.trim() + '\n' + newLine;
-    const encoded = Buffer.from(updated).toString('base64');
-
-    const putRes = await fetch(githubApiUrl, {
+    // Write back
+    const put = await fetch(apiUrl, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
       body: JSON.stringify({
-        message: 'Add rating entry',
-        content: encoded,
-        sha
+        message: `Add referral (${ref} ${book}/${chapter})`,
+        content: Buffer.from(updatedContent).toString('base64'),
+        ...(sha ? { sha } : {})
       })
     });
 
-    if (!putRes.ok) {
-      const errText = await putRes.text();
-      return res.status(putRes.status).json({ error: errText });
+    if (!put.ok) {
+      const err = await put.text();
+      return res.status(put.status).json({ error: 'Failed to update file', details: err });
     }
 
-    // Calculate summary for this book/chapter
-    const rows = updated.split('\n').slice(1); // skip header
-    let count = 0;
-    let sum = 0;
-    const breakdown = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
-
-    rows.forEach(row => {
-      const cols = row.split(',');
-      if (cols.length >= 5) {
-        const [ , , b, c, r ] = cols;
-        if (b === book && c === String(chapter)) {
-          const num = Number(r);
-          if (!isNaN(num)) {
-            count++;
-            sum += num;
-            breakdown[String(num)]++;
-          }
-        }
-      }
-    });
-
-    const avg = count ? (sum / count).toFixed(2) : 0;
-    return res.status(200).json({ ok: true, count, avg, breakdown });
-
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: 'Unexpected error', details: e.message });
   }
 }
