@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>…</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script>
+    (function () {
+      // Read incoming params from Ko-fi link
+      const q = new URLSearchParams(location.search);
+      const rating  = (q.get('rating')  || '').trim();
+      const book    = (q.get('book')    || 'trojan').trim();
+      const chapter = (q.get('chapter') || '0').trim();
+
+      // Read what the first gateway stored on THIS domain
+      let ref = 'NEW';
+      let sid = '';
+      try {
+        ref = (localStorage.getItem('ref') || 'NEW').trim() || 'NEW';
+        sid = localStorage.getItem('session_id') || '';
+        if (!sid) {
+          sid = (crypto.randomUUID ? crypto.randomUUID()
+               : (Date.now() + '-' + Math.random().toString(36).slice(2)));
+          localStorage.setItem('session_id', sid);
+        }
+      } catch (_) {}
+
+      // Build the IONOS ratings page URL:
+      // uses your convention: ratings-[book]-[chapter].html
+      const target = new URL(`https://www.davincialabama.com/ratings-${book}-${chapter}.html`);
+      if (rating)  target.searchParams.set('rating', rating);
+      target.searchParams.set('ref', ref);
+      if (sid)     target.searchParams.set('sessionID', sid);
+      target.searchParams.set('book', book);
+      target.searchParams.set('chapter', chapter);
+
+      // Invisible forward
+      location.replace(target.toString());
+    })();
+  </script>
+</head>
+<body style="display:none"></body>
+</html>
