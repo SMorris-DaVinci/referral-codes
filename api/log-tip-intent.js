@@ -7,84 +7,103 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     return res.status(200).end();
   }
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   const token = process.env.GITHUB_TOKEN;
-  if (!token) return res.status(500).json({ error: 'Missing GITHUB_TOKEN' });
+  if (!token) {
+    return res.status(500).json({ error: 'Missing GITHUB_TOKEN' });
+  }
 
   const repoOwner = 'SMorris-DaVinci';
   const repoName  = 'referral-codes';
   const filePath  = 'tip-intent-log.csv';
 
-  // expected POST body
+  // expected body fields
   const {
     timestamp,
-    session_id = '',
-    ref = 'NEW',
-    book = '',
-    chapter = '',
-    url = '',
+    session_id,
+    ref,
+    book,
+    chapter,
+    url,
     userAgent = '',
     sourceURL = '',
     urlParamsRaw = ''
   } = req.body || {};
 
-  // header MUST match this order
-  const HEADER = 'timestamp,session_id,ref,book,chapter,url,userAgent,sourceURL,urlParamsRaw';
+  if (!timestamp) {
+    return res.status(400).json({ error: 'Missing timestamp' });
+  }
 
-  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`; // CSV escape
+  // CSV safe-quote
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+  // header + row (order matters)
+  const header = 'timestamp,session_id,ref,book,chapter,url,userAgent,sourceURL,urlParamsRaw';
   const line = [
-    q(timestamp || new Date().toISOString()),
-    q(session_id),
-    q(String(ref).trim() || 'NEW'),
-    q(String(book).trim()),
-    q(String(chapter).trim()),
-    q(url),
-    q(userAgent.replace(/\r|\n/g, ' ')),
+    q(timestamp),
+    q(session_id || ''),
+    q((ref && String(ref).trim()) || 'NEW'),
+    q(String(book ?? '').trim()),
+    q(String(chapter ?? '').trim()),
+    q(url || ''),
+    q(userAgent),
     q(sourceURL),
     q(urlParamsRaw)
   ].join(',');
 
-  const api = (p) => `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${p}`;
+  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
   try {
-    // read current file (or 404)
-    const current = await fetch(api(filePath), {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }
+    // read current file (if any)
+    const cur = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json'
+      }
     });
 
-    let content = '';
+    let updatedContent;
     let sha;
 
-    if (current.ok) {
-      const j = await current.json();
-      content = Buffer.from(j.content, 'base64').toString();
-      sha = j.sha;
-    } else if (current.status !== 404) {
-      const err = await current.text();
-      return res.status(current.status).json({ error: 'Fetch tip-intent file failed', details: err });
+    if (cur.ok) {
+      const json = await cur.json();
+      const existing = Buffer.from(json.content, 'base64').toString();
+      const hasHeader = existing.split('\n')[0].trim() === header;
+
+      updatedContent = hasHeader
+        ? `${existing.trim()}\n${line}\n`
+        : `${header}\n${existing.trim().replace(/^\s*$/, '')}\n${line}\n`;
+
+      sha = json.sha;
+    } else if (cur.status === 404) {
+      // new file
+      updatedContent = `${header}\n${line}\n`;
+    } else {
+      const err = await cur.text();
+      return res.status(cur.status).json({ error: 'Failed to fetch file', details: err });
     }
 
-    // ensure header
-    const trimmed = content.trim();
-    const base = trimmed
-      ? (trimmed.startsWith(HEADER) ? trimmed : `${HEADER}\n${trimmed}`)
-      : HEADER;
-
-    // append line
-    const updated = `${base}\n${line}`;
-    const encoded = Buffer.from(updated).toString('base64');
-
-    const put = await fetch(api(filePath), {
+    // write back
+    const put = await fetch(apiUrl, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
-      body: JSON.stringify({ message: 'Log tip-intent', content: encoded, ...(sha ? { sha } : {}) })
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({
+        message: `Add tip intent (${book}/${chapter})`,
+        content: Buffer.from(updatedContent).toString('base64'),
+        ...(sha ? { sha } : {})
+      })
     });
 
     if (!put.ok) {
       const err = await put.text();
-      return res.status(put.status).json({ error: 'Update tip-intent file failed', details: err });
+      return res.status(put.status).json({ error: 'Failed to update file', details: err });
     }
 
     return res.status(200).json({ ok: true });
