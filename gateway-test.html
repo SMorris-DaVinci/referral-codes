@@ -1,47 +1,98 @@
 <!-- gateway-trojan.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Redirecting…</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <script>
-    const params = new URLSearchParams(location.search);
-    const ref = params.get('ref') || 'direct';
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const refParam = (params.get('ref') || '').trim();
+      const ref = refParam || 'NEW'; // CSV expects NEW when missing
+      const book = 'trojan';
+      const chapter = '0';
+      const API_BASE = 'https://referral-codes-ten.vercel.app';
 
-    // Fetch valid Trojan referral codes from external CSV file
-    fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
-      .then(response => response.text())
-      .then(text => {
+      // your prologue target (use the exact Ko-fi post if desired)
+      const DEFAULT_NEXT = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
+      const next = params.get('next') ? decodeURIComponent(params.get('next')) : DEFAULT_NEXT;
+
+      // sessionID (matches CSV header name exactly)
+      try {
+        if (!localStorage.getItem('sessionID')) {
+          const sid = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)));
+          localStorage.setItem('sessionID', sid);
+        }
+        // store ref under BOTH keys to avoid mismatches later
+        localStorage.setItem('ref', ref);
+        localStorage.setItem('trojan_ref', ref);
+      } catch (_) {}
+
+      // 1) validate ref against codes CSV (same as your original)
+      try {
+        const resp = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv', { cache: 'no-store' });
+        const text = await resp.text();
         const validCodes = text
           .split(/\r?\n/)
           .map(line => line.trim())
-          .filter(line => line.length > 0);
+          .filter(Boolean);
 
-        if (validCodes.includes(ref)) {
-          localStorage.setItem('trojan_ref', ref);
+        const isValid = validCodes.includes(ref);
 
-          // Send Trojan referral tracking data to Zapier
-          fetch('https://hooks.zapier.com/hooks/catch/23640362/uub6az2/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ref: ref,
-              timestamp: new Date().toISOString(),
-              userAgent: navigator.userAgent
-            })
-          });
-
-          // Redirect to Trojan Horse prologue page
-          window.location.href = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
-        } else {
-          window.location.href = 'about:blank';
+        if (!isValid && ref !== 'NEW') {
+          // invalid code → bail like your original
+          location.href = 'about:blank';
+          return;
         }
-      })
-      .catch(() => {
-        window.location.href = 'about:blank';
+      } catch (e) {
+        // If validation fetch fails, behave like your original: bail
+        location.href = 'about:blank';
+        return;
+      }
+
+      // 2) log referral to Vercel /api/log (GitHub CSV)
+      try {
+        const payload = {
+          ref,
+          timestamp: new Date().toISOString(),
+          sessionID: localStorage.getItem('sessionID') || '',
+          chapter,
+          book,
+          userAgent: navigator.userAgent,
+          localStorage: JSON.stringify({
+            ref: ref,
+            sessionID: localStorage.getItem('sessionID') || ''
+          }),
+          sourceURL: location.href,
+          ipAddress: '',                       // none available client-side
+          urlParamsRaw: location.search.slice(1)
+        };
+
+        // fire-and-forget; don't block the redirect if it’s slow
+        fetch(API_BASE + '/api/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (_) {
+        // ignore logging errors and continue
+      }
+
+      // 3) redirect to the prologue
+      // Provide a fallback click target in case auto-redirect is blocked
+      setTimeout(() => { location.href = next; }, 150);
+      document.addEventListener('DOMContentLoaded', () => {
+        const a = document.getElementById('continue');
+        if (a) a.href = next;
       });
+    })();
   </script>
 </head>
-<body style="display:none">
+<body style="font-family:system-ui,sans-serif;padding:2rem">
+  <h2>Taking you to the Prologue…</h2>
+  <p>If you’re not redirected automatically, click below.</p>
+  <p><a id="continue" href="#" style="display:inline-block;padding:.6rem 1rem;background:#0a66c2;color:#fff;border-radius:6px;text-decoration:none;">Continue</a></p>
 </body>
 </html>
