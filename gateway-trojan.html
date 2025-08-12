@@ -1,4 +1,4 @@
-<!-- gateway-trojan.html (silent redirect + validation) -->
+<!-- gateway-trojan.html — silent validate+redirect -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,89 +6,82 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title></title>
   <style>
-    /* Keep the page visually blank unless we need to show an error */
-    html, body { background:#fff; margin:0; padding:0; }
+    /* Keep page fully blank; only show if we hit an error */
+    html, body { margin:0; padding:0; background:#fff; }
     body { display:none; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    .wrap { max-width: 640px; margin: 16vh auto; padding: 0 16px; line-height: 1.5; color: #111; }
+    .wrap { max-width:640px; margin:16vh auto; padding:0 16px; line-height:1.5; color:#111; }
   </style>
-  <noscript>
-    <style>body{display:block}</style>
-  </noscript>
+  <noscript><style>body{display:block}</style></noscript>
 </head>
 <body>
-  <!-- Only shown if invalid or JS disabled -->
   <div class="wrap" id="msg" role="alert" aria-live="assertive"></div>
 
   <script>
-    (async () => {
-      const params = new URLSearchParams(location.search);
-      const ref = (params.get('ref') || '').trim();
-      const BOOK = 'trojan';
-      const KOFI_PROLOGUE_URL = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
-      const API_BASE = 'https://referral-codes-ten.vercel.app'; // your Vercel project
+  (async () => {
+    const params = new URLSearchParams(location.search);
+    const ref = (params.get('ref') || '').trim();
+    const BOOK = 'trojan';
+    const KOFI_PROLOGUE_URL = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
+    const API_BASE = 'https://referral-codes-ten.vercel.app';
 
-      // tiny util
-      const showError = (text) => {
-        document.body.style.display = 'block';
-        document.getElementById('msg').textContent = text;
-      };
+    const fail = (text) => {
+      // Only on failure do we reveal the page
+      document.getElementById('msg').textContent = text;
+      document.body.style.display = 'block';
+    };
 
-      try {
-        // 1) quick sanity
-        if (!ref || ref.length < 4) {
-          return showError('Page-link blocked. Referral code invalid, or not found.');
-        }
+    try {
+      if (!ref || ref.length < 4) return fail('Page-link blocked. Referral code invalid, or not found.');
 
-        // 2) fetch allowlist, single-column CSV, no header
-        const listRes = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv', { cache: 'no-store' });
-        if (!listRes.ok) throw new Error('Codes list fetch failed');
-        const listText = await listRes.text();
-        const valid = new Set(
-          listText.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
-        );
-        if (!valid.has(ref)) {
-          return showError('Page-link blocked. Referral code invalid, or not found.');
-        }
+      // Validate against single-column CSV (no header)
+      const r = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv', { cache: 'no-store' });
+      if (!r.ok) throw new Error('codes fetch failed');
+      const txt = await r.text();
+      const ok = txt.split(/\r?\n/).some(line => line.trim() === ref);
+      if (!ok) return fail('Page-link blocked. Referral code invalid, or not found.');
 
-        // 3) session id (persist per browser)
-        let sessionID = localStorage.getItem('session_id');
-        if (!sessionID) {
-          sessionID = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2)));
-          localStorage.setItem('session_id', sessionID);
-        }
-
-        // 4) store what we want to carry later (handy for future flows)
-        localStorage.setItem('ref', ref);
-        localStorage.setItem('book', BOOK);
-
-        // 5) log referral to your API (non-blocking)
-        try {
-          await fetch(`${API_BASE}/api/log`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ref,
-              timestamp: new Date().toISOString(),
-              userAgent: navigator.userAgent,
-              chapter: '',          // unknown at this hop
-              book: BOOK,
-              tipIntent: false,
-              localStorage: JSON.stringify({ ref, book: BOOK }),
-              sourceURL: document.referrer || '',
-              ipAddress: '',
-              urlParamsRaw: location.search.slice(1),
-              sessionID
-            })
-          });
-        } catch (_) { /* ignore — don’t block redirect */ }
-
-        // 6) silent forward (no history entry)
-        location.replace(KOFI_PROLOGUE_URL);
-
-      } catch (err) {
-        showError('Page-link blocked. Referral code invalid, or not found.');
+      // Session id (persisted)
+      let sessionID = localStorage.getItem('session_id');
+      if (!sessionID) {
+        sessionID = (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)));
+        localStorage.setItem('session_id', sessionID);
       }
-    })();
+
+      // Persist a couple of handy values (not visible)
+      localStorage.setItem('ref', ref);
+      localStorage.setItem('book', BOOK);
+
+      // Non-blocking log (no UI, no await needed, but keep a short timeout)
+      try {
+        const ctl = new AbortController();
+        setTimeout(() => ctl.abort(), 1200);
+        fetch(`${API_BASE}/api/log`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ref,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            chapter: '',
+            book: BOOK,
+            tipIntent: false,
+            localStorage: JSON.stringify({ ref, book: BOOK }),
+            sourceURL: document.referrer || '',
+            ipAddress: '',
+            urlParamsRaw: location.search.slice(1),
+            sessionID
+          }),
+          signal: ctl.signal
+        }).catch(()=>{});
+      } catch(_) {}
+
+      // Silent forward (no history entry, no text shown)
+      location.replace(KOFI_PROLOGUE_URL);
+
+    } catch {
+      fail('Page-link blocked. Referral code invalid, or not found.');
+    }
+  })();
   </script>
 </body>
 </html>
