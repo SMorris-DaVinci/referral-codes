@@ -1,115 +1,102 @@
-// /api/log.js — Referral logger → referral-log-trojan.csv (matches provided header)
-export default async function handler(req, res) {
-  // CORS / preflight
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    return res.status(200).end();
-  }
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
-  res.setHeader('Access-Control-Allow-Origin', '*');
+<!-- gateway-trojan.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Trojan referral gateway…</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; color:#222; }
+    .muted { color:#666; }
+    .ok { color:#0b7; }
+    .bad { color:#c00; }
+  </style>
+</head>
+<body>
+  <div id="msg" class="muted">Checking referral code…</div>
 
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) return res.status(500).json({ error: 'Missing GITHUB_TOKEN' });
+  <script>
+  (async () => {
+    const API_BASE = 'https://referral-codes-ten.vercel.app'; // your Vercel project
+    const BOOK = 'trojan';
+    const CHAPTER = '0'; // prologue
+    const KOFI_URL = 'https://ko-fi.com/post/Prologue--Cold-War-Open--By-Bailey-Ryder-A0A51I0KH0';
 
-  const repoOwner = 'SMorris-DaVinci';
-  const repoName  = 'referral-codes';
-  const filePath  = 'referral-log-trojan.csv';
+    const $ = (id) => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    const ref = (params.get('ref') || '').trim();
 
-  // Body fields we accept
-  const {
-    ref: refBody = '',
-    timestamp,
-    sessionID = '',            // note: using sessionID (not session_id) to match your header
-    chapter = '0',
-    book = 'trojan',
-    userAgent = '',
-    localStorage: ls = '',     // stringified localStorage if you send it
-    sourceURL = '',
-    ipAddress = '',
-    urlParamsRaw = ''
-  } = req.body || {};
+    // helper: get or create a persistent session id
+    function getSessionId() {
+      let sid = localStorage.getItem('session_id');
+      if (!sid) {
+        sid = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+        localStorage.setItem('session_id', sid);
+      }
+      return sid;
+    }
 
-  if (!timestamp) return res.status(400).json({ error: 'Missing timestamp' });
+    function show(text, cls) {
+      const el = $('msg');
+      el.textContent = text;
+      el.className = cls || 'muted';
+    }
 
-  // Recover ref from urlParamsRaw if missing
-  let ref = (refBody || '').trim();
-  if (!ref && urlParamsRaw) {
+    if (!ref) {
+      show('Page-link blocked. Referral code invalid, or not found.', 'bad');
+      return;
+    }
+
+    // fetch valid codes (single-column CSV, no header)
+    let valid = false;
     try {
-      const p = new URLSearchParams(urlParamsRaw);
-      const r = (p.get('ref') || '').trim();
-      if (r) ref = r;
-    } catch (_) {}
-  }
-  if (!ref) ref = 'NEW';
-
-  // CSV helpers
-  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-
-  // Exact header you provided
-  const HEADER = 'ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw';
-
-  // Row in that exact order
-  const row = [
-    q(ref),
-    q(timestamp),
-    q(sessionID),
-    q(String(chapter).trim()),
-    q(String(book).trim()),
-    q(userAgent.replace(/\r|\n/g, ' ')),
-    q(String(ls)),
-    q(sourceURL),
-    q(ipAddress),
-    q(urlParamsRaw)
-  ].join(',');
-
-  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
-
-  try {
-    // Read current file (or 404)
-    const cur = await fetch(apiUrl, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }
-    });
-
-    let updatedContent, sha;
-
-    if (cur.ok) {
-      const json = await cur.json();
-      const existing = Buffer.from(json.content, 'base64').toString();
-      const first = (existing.split('\n')[0] || '').trim();
-      const hasHeader = first === HEADER;
-
-      updatedContent = hasHeader
-        ? `${existing.trim()}\n${row}\n`
-        : `${HEADER}\n${existing.trim().replace(/^\s*$/, '')}\n${row}\n`;
-
-      sha = json.sha;
-    } else if (cur.status === 404) {
-      updatedContent = `${HEADER}\n${row}\n`;
-    } else {
-      const err = await cur.text();
-      return res.status(cur.status).json({ error: 'Failed to fetch file', details: err });
+      const csv = await fetch('https://raw.githubusercontent.com/SMorris-DaVinci/referral-codes/main/codes-trojan.csv')
+        .then(r => r.ok ? r.text() : Promise.reject(r.status));
+      const codes = csv.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      valid = codes.includes(ref);
+    } catch (e) {
+      // if we can't load the list, fail closed
+      valid = false;
     }
 
-    // Write back
-    const put = await fetch(apiUrl, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
-      body: JSON.stringify({
-        message: `Add referral (${ref} ${book}/${chapter})`,
-        content: Buffer.from(updatedContent).toString('base64'),
-        ...(sha ? { sha } : {})
-      })
-    });
-
-    if (!put.ok) {
-      const err = await put.text();
-      return res.status(put.status).json({ error: 'Failed to update file', details: err });
+    if (!valid) {
+      show('Page-link blocked. Referral code invalid, or not found.', 'bad');
+      return;
     }
 
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ error: 'Unexpected error', details: e.message });
-  }
-}
+    // store referral + book/chapter + session id
+    localStorage.setItem('ref', ref);
+    localStorage.setItem('trojan_ref', ref); // legacy key you used before
+    localStorage.setItem('book', BOOK);
+    localStorage.setItem('chapter', CHAPTER);
+    const sessionID = getSessionId();
+
+    // fire-and-forget referral log to Vercel
+    try {
+      await fetch(API_BASE + '/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ref,
+          timestamp: new Date().toISOString(),
+          sessionID,
+          chapter: CHAPTER,
+          book: BOOK,
+          userAgent: navigator.userAgent,
+          localStorage: JSON.stringify({ ref, book: BOOK, chapter: CHAPTER }),
+          sourceURL: document.referrer || '',
+          ipAddress: '',                 // left blank by design
+          urlParamsRaw: location.search.slice(1)
+        })
+      });
+    } catch (_) {
+      // non-blocking
+    }
+
+    show('Referral accepted — taking you to the prologue…', 'ok');
+    // short delay so a human can see the message
+    setTimeout(() => { window.location.href = KOFI_URL; }, 500);
+  })();
+  </script>
+</body>
+</html>
