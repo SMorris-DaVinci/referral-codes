@@ -1,4 +1,7 @@
-// /api/log.js
+// /api/log.js  — referral click logger (Trojan)
+// Writes to: referral-log-trojan.csv with header:
+// ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw
+
 export default async function handler(req, res) {
   // CORS / preflight
   if (req.method === 'OPTIONS') {
@@ -14,69 +17,55 @@ export default async function handler(req, res) {
 
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
-    return res.status(500).json({ ok: false, error: 'Missing GITHUB_TOKEN env var' });
+    return res.status(500).json({ ok: false, error: 'Missing GITHUB_TOKEN' });
   }
 
-  // Repo + file target
-  const repoOwner = 'SMorris-DaVinci';
-  const repoName  = 'referral-codes';
-  const filePath  = 'referral-log-trojan.csv';
+  const owner = 'SMorris-DaVinci';
+  const repo  = 'referral-codes';
+  const path  = 'referral-log-trojan.csv';
 
-  // CSV helpers
-  const safe = (v) => {
-    if (v === undefined || v === null) return '""';
-    const s = String(v);
-    return `"${s.replace(/"/g, '""')}"`;
-  };
+  // CSV header must match exactly:
+  const HEADER = 'ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw';
 
-  // Expected CSV header (exact order)
-  const HEADER = [
-    'ref',
-    'timestamp',
-    'sessionID',
-    'chapter',
-    'book',
-    'userAgent',
-    'localStorage',
-    'sourceURL',
-    'ipAddress',
-    'urlParamsRaw'
-  ].join(',');
-
-  // Extract payload
-  const body = req.body || {};
-
-  // Resolve ref: body.ref -> urlParamsRaw(ref) -> NEW
-  let ref = (body.ref || '').trim();
-  if (!ref && body.urlParamsRaw) {
-    try {
-      const p = new URLSearchParams(body.urlParamsRaw);
-      const fromUrl = (p.get('ref') || '').trim();
-      if (fromUrl) ref = fromUrl;
-    } catch {
-      /* ignore bad query strings */
-    }
-  }
-  if (!ref) ref = 'NEW';
-
-  // Build one CSV row (exact column order)
-  const row = [
-    safe(ref),
-    safe(new Date().toISOString()),
-    safe(body.sessionID || ''),           // <- sessionID (camelCase)
-    safe(body.chapter || ''),
-    safe(body.book || ''),
-    safe(body.userAgent || ''),
-    safe(body.localStorage || ''),
-    safe(body.sourceURL || ''),
-    safe(body.ipAddress || ''),
-    safe(body.urlParamsRaw || '')
-  ].join(',');
-
-  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
+  // Helper to CSV-escape one value
+  const q = (v) => `"${(v ?? '').toString().replace(/"/g, '""')}"`;
 
   try {
-    // Read current file (to append)
+    const body = req.body || {};
+
+    // Normalize fields to match your header
+    const ref         = (body.ref ?? '').toString();
+    const timestamp   = body.timestamp || new Date().toISOString();
+
+    // Accept either sessionID or session_id from clients
+    const sessionID   = body.sessionID || body.session_id || '';
+
+    const chapter     = (body.chapter ?? '').toString();
+    const book        = (body.book ?? '').toString();
+    const userAgent   = body.userAgent || '';
+    const localStorage= body.localStorage || '';
+    const sourceURL   = body.sourceURL || '';
+    // Accept either ipAddress or ip
+    const ipAddress   = body.ipAddress || body.ip || '';
+    const urlParamsRaw= body.urlParamsRaw || '';
+
+    // Build one CSV row (order exactly matches HEADER)
+    const row = [
+      q(ref),
+      q(timestamp),
+      q(sessionID),
+      q(chapter),
+      q(book),
+      q(userAgent),
+      q(localStorage),
+      q(sourceURL),
+      q(ipAddress),
+      q(urlParamsRaw)
+    ].join(',');
+
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+    // Fetch current file
     const current = await fetch(apiUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -91,19 +80,11 @@ export default async function handler(req, res) {
       const json = await current.json();
       const existing = Buffer.from(json.content, 'base64').toString();
 
-      // Ensure correct header
-      const lines = existing.trim().split('\n');
-      const hasHeader = lines.length > 0 && lines[0].trim() === HEADER;
-
-      if (hasHeader) {
-        updatedContent = `${existing.trim()}\n${row}\n`;
-      } else {
-        // If a different/old header exists, keep it below our header so the file stays readable
-        const cleaned = existing.trim().replace(/^\s*$/, '');
-        updatedContent = cleaned
-          ? `${HEADER}\n${cleaned}\n${row}\n`
-          : `${HEADER}\n${row}\n`;
-      }
+      const hasHeader = existing.split('\n')[0].trim() === HEADER;
+      // Ensure header at top, then append new row
+      updatedContent = hasHeader
+        ? `${existing.trim()}\n${row}\n`
+        : `${HEADER}\n${existing.trim().replace(/^\s*$/, '')}\n${row}\n`;
 
       sha = json.sha;
     } else if (current.status === 404) {
@@ -111,10 +92,10 @@ export default async function handler(req, res) {
       updatedContent = `${HEADER}\n${row}\n`;
     } else {
       const err = await current.text();
-      return res.status(current.status).json({ ok: false, error: 'Fetch file failed', details: err });
+      return res.status(current.status).json({ ok: false, error: 'Fetch referral log failed', details: err });
     }
 
-    // PUT updated content
+    // Commit update
     const put = await fetch(apiUrl, {
       method: 'PUT',
       headers: {
@@ -122,7 +103,7 @@ export default async function handler(req, res) {
         Accept: 'application/vnd.github.v3+json'
       },
       body: JSON.stringify({
-        message: `Log referral ${ref}`,
+        message: `Log referral ${ref || '(no-ref)'}`,
         content: Buffer.from(updatedContent).toString('base64'),
         ...(sha ? { sha } : {})
       })
@@ -130,7 +111,7 @@ export default async function handler(req, res) {
 
     if (!put.ok) {
       const err = await put.text();
-      return res.status(put.status).json({ ok: false, error: 'Update file failed', details: err });
+      return res.status(put.status).json({ ok: false, error: 'Update referral log failed', details: err });
     }
 
     return res.status(200).json({ ok: true });
