@@ -1,7 +1,4 @@
-// /api/log.js  — referral click logger (Trojan)
-// Writes to: referral-log-trojan.csv with header:
-// ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw
-
+// /api/log.js — append to referral-log-trojan.csv with server-captured IP
 export default async function handler(req, res) {
   // CORS / preflight
   if (req.method === 'OPTIONS') {
@@ -11,61 +8,66 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
-    return res.status(500).json({ ok: false, error: 'Missing GITHUB_TOKEN' });
+    return res.status(500).json({ error: 'Missing GITHUB_TOKEN' });
   }
 
-  const owner = 'SMorris-DaVinci';
-  const repo  = 'referral-codes';
-  const path  = 'referral-log-trojan.csv';
+  const repoOwner = 'SMorris-DaVinci';
+  const repoName  = 'referral-codes';
+  const filePath  = 'referral-log-trojan.csv';
 
-  // CSV header must match exactly:
-  const HEADER = 'ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw';
+  // helper to CSV-escape
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  // Helper to CSV-escape one value
-  const q = (v) => `"${(v ?? '').toString().replace(/"/g, '""')}"`;
+  // Extract IP from proxy headers (Vercel sets x-forwarded-for)
+  const ipFromHeaders = (() => {
+    const xf = req.headers['x-forwarded-for'];
+    if (typeof xf === 'string' && xf.length) return xf.split(',')[0].trim();
+    const xr = req.headers['x-real-ip'];
+    if (typeof xr === 'string' && xr.length) return xr.trim();
+    return '';
+  })();
+
+  // body fields sent by gateway page
+  const b = req.body || {};
+  const rowObj = {
+    ref: b.ref || 'NEW',
+    timestamp: b.timestamp || new Date().toISOString(),
+    sessionID: b.sessionID || '',
+    // You mentioned this table is always chapter 0 for Opossum Trap; default accordingly
+    chapter: (b.chapter ?? '0'),
+    book: b.book || 'trojan',
+    userAgent: b.userAgent || '',
+    localStorage: b.localStorage || '',
+    sourceURL: b.sourceURL || '',
+    ipAddress: b.ipAddress || ipFromHeaders,         // <-- server fills if client didn’t
+    urlParamsRaw: b.urlParamsRaw || ''
+  };
+
+  // Build CSV header & row in the exact column order you use now
+  const header = 'ref,timestamp,sessionID,chapter,book,userAgent,localStorage,sourceURL,ipAddress,urlParamsRaw';
+  const row = [
+    q(rowObj.ref),
+    q(rowObj.timestamp),
+    q(rowObj.sessionID),
+    q(rowObj.chapter),
+    q(rowObj.book),
+    q(rowObj.userAgent),
+    q(rowObj.localStorage),
+    q(rowObj.sourceURL),
+    q(rowObj.ipAddress),
+    q(rowObj.urlParamsRaw)
+  ].join(',');
+
+  const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`;
 
   try {
-    const body = req.body || {};
-
-    // Normalize fields to match your header
-    const ref         = (body.ref ?? '').toString();
-    const timestamp   = body.timestamp || new Date().toISOString();
-
-    // Accept either sessionID or session_id from clients
-    const sessionID   = body.sessionID || body.session_id || '';
-
-    const chapter     = (body.chapter ?? '').toString();
-    const book        = (body.book ?? '').toString();
-    const userAgent   = body.userAgent || '';
-    const localStorage= body.localStorage || '';
-    const sourceURL   = body.sourceURL || '';
-    // Accept either ipAddress or ip
-    const ipAddress   = body.ipAddress || body.ip || '';
-    const urlParamsRaw= body.urlParamsRaw || '';
-
-    // Build one CSV row (order exactly matches HEADER)
-    const row = [
-      q(ref),
-      q(timestamp),
-      q(sessionID),
-      q(chapter),
-      q(book),
-      q(userAgent),
-      q(localStorage),
-      q(sourceURL),
-      q(ipAddress),
-      q(urlParamsRaw)
-    ].join(',');
-
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-    // Fetch current file
+    // read existing CSV (or 404 if new)
     const current = await fetch(apiUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -73,29 +75,27 @@ export default async function handler(req, res) {
       }
     });
 
-    let updatedContent;
+    let content = '';
     let sha;
 
     if (current.ok) {
       const json = await current.json();
-      const existing = Buffer.from(json.content, 'base64').toString();
-
-      const hasHeader = existing.split('\n')[0].trim() === HEADER;
-      // Ensure header at top, then append new row
-      updatedContent = hasHeader
-        ? `${existing.trim()}\n${row}\n`
-        : `${HEADER}\n${existing.trim().replace(/^\s*$/, '')}\n${row}\n`;
-
+      content = Buffer.from(json.content, 'base64').toString();
       sha = json.sha;
-    } else if (current.status === 404) {
-      // Create new file with header
-      updatedContent = `${HEADER}\n${row}\n`;
-    } else {
+    } else if (current.status !== 404) {
       const err = await current.text();
-      return res.status(current.status).json({ ok: false, error: 'Fetch referral log failed', details: err });
+      return res.status(current.status).json({ error: 'Fetch failed', details: err });
     }
 
-    // Commit update
+    // ensure header
+    const trimmed = content.trim();
+    const hasHeader = trimmed.startsWith(header);
+    const base = hasHeader ? trimmed : (trimmed ? `${header}\n${trimmed}` : header);
+
+    // append row
+    const updated = `${base}\n${row}\n`;
+    const encoded = Buffer.from(updated).toString('base64');
+
     const put = await fetch(apiUrl, {
       method: 'PUT',
       headers: {
@@ -103,19 +103,19 @@ export default async function handler(req, res) {
         Accept: 'application/vnd.github.v3+json'
       },
       body: JSON.stringify({
-        message: `Log referral ${ref || '(no-ref)'}`,
-        content: Buffer.from(updatedContent).toString('base64'),
+        message: 'Log referral (server IP)',
+        content: encoded,
         ...(sha ? { sha } : {})
       })
     });
 
     if (!put.ok) {
       const err = await put.text();
-      return res.status(put.status).json({ ok: false, error: 'Update referral log failed', details: err });
+      return res.status(put.status).json({ error: 'Update failed', details: err });
     }
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: 'Unexpected error', details: e.message });
+    return res.status(500).json({ error: 'Unexpected error', details: e.message });
   }
 }
